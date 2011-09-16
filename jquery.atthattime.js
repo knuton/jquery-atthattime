@@ -1,5 +1,5 @@
 /*
- * atthattime: a jQuery plugin, version: 0.0.1 (2011-09-16)
+ * atthattime: a jQuery plugin, version: 0.1.0 (2011-09-16)
  * @requires jQuery v1.2.3 or later
  *
  * atthattime is a jQuery plugin that makes it easy to support automatically
@@ -37,35 +37,60 @@
     settings: {
       refreshMillis: 60000,
       allowFuture: false,
-      granularity: "seconds",
+      smallestGrain: "seconds",
+      biggestGrain: "days",
       strings: {
         prefixAgo: null,
         prefixFromNow: null,
         suffixAgo: "ago",
         suffixFromNow: "from now",
-        seconds: "less than a minute",
+        thisSecond: "this second",
+        seconds: "%d second%n",
         thisMinute: "this minute",
-        minute: "about a minute",
-        minutes: "%d minutes",
+        minutes: "%d minute%n",
         thisHour: "this hour",
-        hour: "about an hour",
-        hours: "about %d hours",
+        hours: "%d hour%n",
         thisDay: "today",
-        day: "a day",
-        days: "%d days",
+        days: "%d day%n",
         thisMonth: "this month",
-        month: "about a month",
-        months: "%d months",
+        months: "%d month%n",
         thisYear: "this year",
-        year: "about a year",
-        years: "%d years",
+        years: "%d year%n",
         numbers: []
       }
     },
-    inWords: function(distanceMillis) {
+    inWords: function(then) {
       var $l = this.settings.strings;
       var prefix = $l.prefixAgo;
       var suffix = $l.suffixAgo;
+
+      var cmp = allEqual;
+
+      function substitute(stringOrFunction, number) {
+        var string = $.isFunction(stringOrFunction) ? stringOrFunction(number, distanceMillis) : stringOrFunction;
+        var value = ($l.numbers && $l.numbers[number]) || number;
+        var agreement = number > 1 ? 's' : '';
+        return string.replace(/%d/i, value).replace(/%n/i, agreement);
+      }
+
+      var now        = new Date();
+      now.setMilliseconds(0);
+      var yearNow    = now.getFullYear(),
+          monthNow   = now.getMonth(),
+          dayNow     = now.getDate(),
+          hoursNow   = now.getHours(),
+          minutesNow = now.getMinutes(),
+          secondsNow = now.getSeconds();
+
+      var yearThen    = then.getFullYear(),
+          monthThen   = then.getMonth(),
+          dayThen     = then.getDate(),
+          hoursThen   = then.getHours(),
+          minutesThen = then.getMinutes(),
+          secondsThen = then.getSeconds();
+      
+      var distanceMillis = now - then;
+
       if (this.settings.allowFuture) {
         if (distanceMillis < 0) {
           prefix = $l.prefixFromNow;
@@ -74,57 +99,49 @@
         distanceMillis = Math.abs(distanceMillis);
       }
 
-      var seconds = distanceMillis / 1000;
-      var minutes = seconds / 60;
-      var hours = minutes / 60;
-      var days = hours / 24;
-      var years = days / 365;
-
-      function substitute(stringOrFunction, number) {
-        var string = $.isFunction(stringOrFunction) ? stringOrFunction(number, distanceMillis) : stringOrFunction;
-        var value = ($l.numbers && $l.numbers[number]) || number;
-        return string.replace(/%d/i, value);
-      }
-
       var words;
 
-      if (isShown('seconds') && seconds < 45) {
-        words = substitute($l.seconds, Math.round(seconds));
-      } else if (!isShown('seconds') && isShown('minutes') && seconds < 45) {
-        words = substitute($l.thisMinute, Math.round(seconds));
+      if (isShown("seconds") && cmp([yearNow, monthNow, dayNow, hoursNow, minutesNow, secondsNow], [yearThen, monthThen, dayThen, hoursThen, minutesThen, secondsThen])) {
+        words = substitute($l.thisSecond);
         suffix = prefix = null;
-      } else if (isShown('minutes') && seconds < 90) {
-        words = substitute($l.minute, 1);
-      } else if (isShown('minutes') && minutes < 45) {
-        words = substitute($l.minutes, Math.round(minutes));
-      } else if (!isShown('minutes') && isShown('hours') && minutes < 45) {
-        words = substitute($l.thisHour, Math.round(minutes));
+      } else if (isBiggestGrain("seconds")) {
+        words = substitute($l.seconds, distanceMillis);
+      } else if (isShown("minutes") && cmp([yearNow, monthNow, dayNow, hoursNow, minutesNow], [yearThen, monthThen, dayThen, hoursThen, minutesThen])) {
+        words = substitute($l.thisMinute);
         suffix = prefix = null;
-      } else if (isShown('hours') && minutes < 90) {
-        words = substitute($l.hour, 1);
-      } else if (isShown('hours') && hours < 24) {
-        words = substitute($l.hours, Math.round(hours));
-      } else if (!isShown('hours') && isShown('days') && hours < 24) {
-        words = substitute($l.thisDay, Math.round(hours));
+      } else if (isBiggestGrain("minutes")) {
+        now.setSeconds(0);
+        then.setSeconds(0);
+        words = substitute($l.minutes, Math.floor(Math.abs(now - then) / 60000));
+      } else if (isShown("hours") && cmp([yearNow, monthNow, dayNow, hoursNow], [yearThen, monthThen, dayThen, hoursThen])) {
+        words = substitute($l.thisHour);
         suffix = prefix = null;
-      } else if (isShown('days') && hours < 48) {
-        words = substitute($l.day, 1);
-      } else if (isShown('days') && days < 30) {
-        words = substitute($l.days, Math.floor(days));
-      } else if (!isShown('days') && isShown('months') && days < 30) {
-        words = substitute($l.thisMonth, Math.floor(days));
+      } else if (isBiggestGrain("hours")) {
+        now.setSeconds(0); now.setMinutes(0);
+        then.setSeconds(0); then.setMinutes(0);
+        words = substitute($l.hours, Math.floor(Math.abs(now - then) / 3600000));
+      } else if (isShown("days") && cmp([yearNow, monthNow, dayNow], [yearThen, monthThen, dayThen])) {
+        words = substitute($l.thisDay);
         suffix = prefix = null;
-      } else if (isShown('months') && days < 60) {
-        words = substitute($l.month, 1);
-      } else if (isShown('months') && days < 365) {
-        words = substitute($l.months, Math.floor(days / 30));
-      } else if (!isShown('months') && days < 365) {
-        words = substitute($l.thisYear, Math.floor(days / 30));
+      } else if (isBiggestGrain("days")) {
+        now.setSeconds(0); now.setMinutes(0); now.setHours(0);
+        then.setSeconds(0); then.setMinutes(0); then.setHours(0);
+        console.log((now - then)/1000)
+        words = substitute($l.days, Math.floor(Math.abs(now - then) / 86400000));
+      } else if (isShown("months") && cmp([yearNow, monthNow], [yearThen, monthThen])) {
+        words = substitute($l.thisMonth);
         suffix = prefix = null;
-      } else if (years < 2) {
-        words = substitute($l.year, 1);
+      } else if (isBiggestGrain("months")) {
+        now.setSeconds(0); now.setMinutes(0); now.setHours(0); now.setDate(1);
+        then.setSeconds(0); then.setMinutes(0); then.setHours(0); then.setDate(1);
+        words = substitute($l.months, Math.floor(Math.abs(now - then) / 2678400000));
+      } else if (isShown("years") && cmp([yearNow], [yearThen])) {
+        words = substitute($l.thisYear);
+        suffix = prefix = null;
       } else {
-        words = substitute($l.years, Math.floor(years));
+        now.setSeconds(0); now.setMinutes(0); now.setHours(0); now.setDate(0); now.setMonths(1);
+        then.setSeconds(0); then.setMinutes(0); then.setHours(0); then.setDate(0); now.setMonths(1);
+        words = substitute($l.years, Math.floor(Math.abs(now - then) / 32140800000));
       }
 
       return $.trim([prefix, words, suffix].join(" "));
@@ -158,6 +175,15 @@
     return self;
   };
 
+  function allEqual (listA, listB) {
+    var length = listA.length;
+    if (length !== listB.length) return false;
+    for (var i = 0; i < length; i++) {
+      if (listA[i] !== listB[i]) return false;
+    }
+    return true;
+  }
+
   function refresh() {
     var data = prepareData(this);
     if (!isNaN(data.datetime)) {
@@ -179,11 +205,11 @@
   }
 
   function inWords(date) {
-    return $att.inWords(distance(date));
+    return $att.inWords(date);
   }
 
   function isShown(timeUnit) {
-    var grain = $att.settings.granularity || "seconds";
+    var grain = $att.settings.smallestGrain || "seconds";
     switch (timeUnit) {
       case "seconds":
         return grain === "seconds";
@@ -204,8 +230,8 @@
     }
   }
 
-  function distance(date) {
-    return (new Date().getTime() - date.getTime());
+  function isBiggestGrain(timeUnit) {
+    return timeUnit === ($att.settings.biggestGrain || "years");
   }
 
   // fix for IE6 suckage
