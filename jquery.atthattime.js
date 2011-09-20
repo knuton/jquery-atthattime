@@ -39,6 +39,7 @@
       allowFuture: false,
       smallestGrain: "seconds",
       biggestGrain: "days",
+      offset: 0,
       strings: {
         prefixAgo: null,
         prefixFromNow: null,
@@ -126,7 +127,6 @@
       } else if (isBiggestGrain("days")) {
         now.setSeconds(0); now.setMinutes(0); now.setHours(0);
         then.setSeconds(0); then.setMinutes(0); then.setHours(0);
-        console.log((now - then)/1000)
         words = substitute($l.days, Math.floor(Math.abs(now - then) / 86400000));
       } else if (isShown("months") && cmp([yearNow, monthNow], [yearThen, monthThen])) {
         words = substitute($l.thisMonth);
@@ -152,7 +152,9 @@
       s = s.replace(/-/,"/").replace(/-/,"/");
       s = s.replace(/T/," ").replace(/Z/," UTC");
       s = s.replace(/([\+\-]\d\d)\:?(\d\d)/," $1$2"); // -04:00 -> -0400
-      return new Date(s);
+      var result = new Date(s);
+      if ($att.settings.offset) result.setSeconds(result.getSeconds() + $att.settings.offset);
+      return result;
     },
     datetime: function(elem) {
       // jQuery's `is()` doesn't play well with HTML5 in IE
